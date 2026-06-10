@@ -17,7 +17,7 @@
 - **carbonate-cement-PLS** (reproduce ATR-IR+PLS CaCO₃ quantification in Python, then extend)
   - **Phase 0 — Foundation**
     - [x] **0.1 Repo scaffolding & data staging** — git init, dir skeleton, requirements, LICENSE, stub README, .gitignore (Excel + regenerable artifacts), commit minimal data subset (calibration + validation OPUS spectra). _why leaf: execution only, publishing decision already made._  ✅ commit `e8379af`: 112 files, 99 OPUS spectra staged, Excel + .DS_Store gitignored before first commit; MIT + CC-BY-4.0 dual license.
-    - [ ] **0.2 OPUS loader** (`src`) — parse OPUS binary → (wavenumber, absorbance) from `'a'` block; discover + group replicate files per sample. _why leaf: block + grouping decided, just implement._
+    - [x] **0.2 OPUS loader** (`src`) — parse OPUS binary → (wavenumber, absorbance) from `'a'` block; discover + group replicate files per sample. _why leaf: block + grouping decided, just implement._  ✅ `src/loader.py`: frozen `Spectrum` dataclass + `load_spectrum` (ascending wn, 5049 pts) + `group_replicates` (regex `\.\d+$`); verified 12 cal samples × 3 replicates, .DS_Store filtered.
     - [ ] **0.3 Label extraction → committed `labels.csv`** — parse `Auswertung…xlsx`, map sample → TG-FTIR CaCO₃ wt%, write the one published derived file. _why leaf: source + target decided._  (verify sample names match spectra filenames)
     - [ ] **0.4 Assemble modelling dataset** — average replicates per sample, resample to common wavenumber grid, align X with y, sanity check (overlay plot + label range). _why leaf: average + common-grid decided._  (needs 0.2 + 0.3 first)
   - **Phase 1 — Reproduce core** *(the de-risking checkpoint)*
@@ -49,11 +49,18 @@
 - **0.1 — data staging:** commit all 35 calibration + 63 validation OPUS files (~9 MB, flat binary files named `JK_*.N` where `.N` = replicate). Gitignore the 3 Excel files + `.DS_Store` + artifacts **before** the first commit.
 - **0.1 — dirs:** `src/ tests/ scripts/ notebooks/ reports/ models/ data/` (matches project 1).
 
+### 0.2 — OPUS loader (`src/loader.py`)
+- **Return type (A2):** frozen `@dataclass Spectrum(wavenumber, absorbance, source: Path)` from the OPUS `'a'` block. _Chosen over a bare tuple (no provenance) and over project-1's DataFrame style (heavyweight for two aligned vectors); `source` pays off when debugging which replicate looks off._
+- **Orientation:** `load_spectrum(path) -> Spectrum` flips wavenumber to **ascending** (400→3998) via `argsort` at the single point of entry, so the whole pipeline sees one orientation. Spectroscopy high→low is a display-time flip only.
+- **Grouping:** `group_replicates(dir) -> dict[str, list[Path]]`, key = sample root via regex `r"\.\d+$"` (strip trailing `.N`). Dict key is just the bucket label; full replicate paths preserved in the list. Regex (not `Path.stem`) for safety on irregular names like `JK_V2_Test.0`.
+- **Scope boundary:** 0.2 loads one file + groups paths only. **Averaging / common-grid resampling deferred to 0.4.**
+- **API facts (probed):** `read_opus(path).a.x` = wavenumber descending 3998→400, `.a.y` = absorbance, 5049 pts; files may also carry an `a_2` block — we take `a`. Cal = 12 clean roots `JK_MV_01..12`; validation naming irregular (handled in 2.1).
+
 ## Next up
 > Ordered for reproduction-first build; reorder freely. The **checkpoint at #7** is the go/no-go — don't invest in packaging until the numbers reproduce.
 
 1. [x] **0.1** Repo scaffolding & data staging
-2. [ ] **0.2** OPUS loader
+2. [x] **0.2** OPUS loader
 3. [ ] **0.3** Label extraction → `labels.csv` (cal + val)
 4. [ ] **0.4** Assemble calibration dataset (avg replicates, common grid, sanity check)
 5. [ ] **1.1** Preprocessing toolkit
