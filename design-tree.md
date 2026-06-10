@@ -18,7 +18,7 @@
   - **Phase 0 — Foundation**
     - [x] **0.1 Repo scaffolding & data staging** — git init, dir skeleton, requirements, LICENSE, stub README, .gitignore (Excel + regenerable artifacts), commit minimal data subset (calibration + validation OPUS spectra). _why leaf: execution only, publishing decision already made._  ✅ commit `e8379af`: 112 files, 99 OPUS spectra staged, Excel + .DS_Store gitignored before first commit; MIT + CC-BY-4.0 dual license.
     - [x] **0.2 OPUS loader** (`src`) — parse OPUS binary → (wavenumber, absorbance) from `'a'` block; discover + group replicate files per sample. _why leaf: block + grouping decided, just implement._  ✅ `src/loader.py`: frozen `Spectrum` dataclass + `load_spectrum` (ascending wn, 5049 pts) + `group_replicates` (regex `\.\d+$`); verified 12 cal samples × 3 replicates, .DS_Store filtered.
-    - [ ] **0.3 Label extraction → committed `labels.csv`** — parse `Auswertung…xlsx`, map sample → TG-FTIR CaCO₃ wt%, write the one published derived file. _why leaf: source + target decided._  (verify sample names match spectra filenames)
+    - [x] **0.3 Label extraction → committed `labels.csv`** — parse `Auswertung…xlsx`, map sample → FTIR CaCO₃ wt%, write the one published derived file. _why leaf: source + target decided._  ✅ `scripts/extract_labels.py` → `data/labels.csv`: 12 cal samples `JK_MV_01..12`, FTIR CaCO₃ (col U); names map 1-to-1 to loader keys; val labels deferred to 2.1.
     - [ ] **0.4 Assemble modelling dataset** — average replicates per sample, resample to common wavenumber grid, align X with y, sanity check (overlay plot + label range). _why leaf: average + common-grid decided._  (needs 0.2 + 0.3 first)
   - **Phase 1 — Reproduce core** *(the de-risking checkpoint)*
     - [ ] **1.1 Preprocessing toolkit** (`src`) — composable transforms: SNV, MSC, Savitzky-Golay 1st-deriv (exact) + OPUS best-effort SLS/LOS/MMN + spectral-window cropping. _why leaf: "match result not bits" decided; just implement._
@@ -46,7 +46,7 @@
 - **0.1 — layout (B2):** `src/` layout with **flat modules + `src/__init__.py`**, mirroring sibling `ir-spectra-analyzer` (no nested package dir, no installable package; scripts import via a `sys.path` shim → `from src.loader import …`).
 - **0.1 — dependencies (C1):** plain `requirements.txt` with `>=` ranges (project-1 style). Deps: numpy, pandas, scipy, matplotlib, scikit-learn, joblib + `brukeropus` (OPUS binary parsing) + `openpyxl` (read label Excel).
 - **0.1 — license (D3):** MIT for code, **CC-BY-4.0** for the committed spectra (data ≠ software; cite the JACE paper). _Note: project 1 ships no license; this is an intentional improvement, not a divergence._
-- **0.1 — data staging:** commit all 35 calibration + 63 validation OPUS files (~9 MB, flat binary files named `JK_*.N` where `.N` = replicate). Gitignore the 3 Excel files + `.DS_Store` + artifacts **before** the first commit.
+- **0.1 — data staging:** commit all 36 calibration + 63 validation OPUS files (~9 MB, flat binary files named `JK_*.N` where `.N` = replicate). Gitignore the 3 Excel files + `.DS_Store` + artifacts **before** the first commit.
 - **0.1 — dirs:** `src/ tests/ scripts/ notebooks/ reports/ models/ data/` (matches project 1).
 
 ### 0.2 — OPUS loader (`src/loader.py`)
@@ -56,12 +56,20 @@
 - **Scope boundary:** 0.2 loads one file + groups paths only. **Averaging / common-grid resampling deferred to 0.4.**
 - **API facts (probed):** `read_opus(path).a.x` = wavenumber descending 3998→400, `.a.y` = absorbance, 5049 pts; files may also carry an `a_2` block — we take `a`. Cal = 12 clean roots `JK_MV_01..12`; validation naming irregular (handled in 2.1).
 
+### 0.3 — Label extraction (`scripts/extract_labels.py` → `data/labels.csv`)
+- **Source sheet:** `Auswertung TG-FTIR-ATR-Kalibrierung.xlsx`, single sheet `TG-FTIR NEU NEU`. Right-hand summary table (`Probe 1..12`) is one clean row per sample; its values equal the per-sample `MITTELWERT` of the left block.
+- **Name mapping (resolved):** trivial 1-to-1 — `Probe N` ↔ `JK_MV_{N:02d}`, matching the loader's group keys. No fuzzy matching.
+- **Reference y (resolved):** **FTIR CaCO₃** (col U) = CaCO₃ from evolved-CO₂ peak area. _Chosen over TG-mass-loss CaCO₃ (col W) and over nominal/expected (cols S/T, which are recipe targets, not measurements). Decisive reason: the sheet's "IN QUANT" blocks show the U values are the concentrations that were copied into OPUS Quant, so U is the apples-to-apples reproduction target._ FTIR vs TG agree within ~1–2 wt%.
+- **Provenance:** extraction is a committed script (raw Excel stays gitignored), so each label traces back to a sheet+column rather than being hand-typed.
+- **Scope:** calibration labels only; the 12 `JK_MV_*` references live in this sheet. Validation (`JK_V*`) references are elsewhere and are deferred to 2.1.
+- **⚠ Caveat (reproduction-checkpoint flag):** a separate post-thesis Excel (`Berechnung CO2-Uptake.xlsx`) holds *newer* CO₂-uptake / CaCO₃ values produced for the publication. Per the user's recollection these were used only to re-determine CO₂ absorbed — the OPUS PLS models were **not** retrained — so this calibration sheet's values are the right reproduction target. **If the 1.3 checkpoint comes out further from the paper than expected, the newer CaCO₃ values are the first thing to re-check.**
+
 ## Next up
 > Ordered for reproduction-first build; reorder freely. The **checkpoint at #7** is the go/no-go — don't invest in packaging until the numbers reproduce.
 
 1. [x] **0.1** Repo scaffolding & data staging
 2. [x] **0.2** OPUS loader
-3. [ ] **0.3** Label extraction → `labels.csv` (cal + val)
+3. [x] **0.3** Label extraction → `labels.csv` (cal; val deferred to 2.1)
 4. [ ] **0.4** Assemble calibration dataset (avg replicates, common grid, sanity check)
 5. [ ] **1.1** Preprocessing toolkit
 6. [ ] **1.2** PLS + LOOCV harness
