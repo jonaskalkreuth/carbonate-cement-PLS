@@ -1,0 +1,21 @@
+Data license — Creative Commons Attribution 4.0 International (CC-BY-4.0)
+========================================================================
+
+The spectral data committed under `data/` (the calibration and validation
+ATR-IR OPUS spectra) is licensed separately from the code, under the
+Creative Commons Attribution 4.0 International License.
+
+Full license text: https://creativecommons.org/licenses/by/4.0/legalcode
+Human-readable summary: https://creativecommons.org/licenses/by/4.0/
+
+You are free to share and adapt this data for any purpose, provided you give
+appropriate credit by citing the source publication:
+
+    Kalkreuth, J. et al. "Accelerated carbonation of hardened cement paste:
+    Quantification of calcium carbonate via ATR infrared spectroscopy."
+    Journal of the American Ceramic Society, 2023.
+    https://doi.org/10.1111/jace.19546  (open access)
+
+Note: this repository commits only the minimal ATR-IR spectra plus a derived
+label file. The broader multi-experiment laboratory data (TG/TG-FTIR, XRF,
+XRD, CO2-uptake) is NOT published here.

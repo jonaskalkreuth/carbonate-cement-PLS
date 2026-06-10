@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Lab Excel — supervisor cleared *use*, not publishing (decision #10).
+# Used locally to build labels.csv; the raw multi-experiment data stays out of the repo.
+data/*.xlsx
+
+# Trained models (regenerable)
+models/*.joblib
+models/*.pkl
+
+# Generated plot/validation artifacts (regenerable from scripts)
+scripts/*.png
+reports/*.png
+
+# Test cache
+.pytest_cache/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
