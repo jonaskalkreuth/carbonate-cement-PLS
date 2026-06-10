@@ -19,7 +19,7 @@
     - [x] **0.1 Repo scaffolding & data staging** — git init, dir skeleton, requirements, LICENSE, stub README, .gitignore (Excel + regenerable artifacts), commit minimal data subset (calibration + validation OPUS spectra). _why leaf: execution only, publishing decision already made._  ✅ commit `e8379af`: 112 files, 99 OPUS spectra staged, Excel + .DS_Store gitignored before first commit; MIT + CC-BY-4.0 dual license.
     - [x] **0.2 OPUS loader** (`src`) — parse OPUS binary → (wavenumber, absorbance) from `'a'` block; discover + group replicate files per sample. _why leaf: block + grouping decided, just implement._  ✅ `src/loader.py`: frozen `Spectrum` dataclass + `load_spectrum` (ascending wn, 5049 pts) + `group_replicates` (regex `\.\d+$`); verified 12 cal samples × 3 replicates, .DS_Store filtered.
     - [x] **0.3 Label extraction → committed `labels.csv`** — parse `Auswertung…xlsx`, map sample → FTIR CaCO₃ wt%, write the one published derived file. _why leaf: source + target decided._  ✅ `scripts/extract_labels.py` → `data/labels.csv`: 12 cal samples `JK_MV_01..12`, FTIR CaCO₃ (col U); names map 1-to-1 to loader keys; val labels deferred to 2.1.
-    - [ ] **0.4 Assemble modelling dataset** — average replicates per sample, resample to common wavenumber grid, align X with y, sanity check (overlay plot + label range). _why leaf: average + common-grid decided._  (needs 0.2 + 0.3 first)
+    - [x] **0.4 Assemble modelling dataset** — average replicates per sample, resample to common wavenumber grid, align X with y, sanity check (overlay plot + label range). _why leaf: average + common-grid decided._  ✅ `src/dataset.py`: frozen `Dataset` + `assemble_dataset` → X (12, 5049), y (12,), CaCO₃ 2.45–61.26 wt%; B1 axis-guard (all 36 spectra bit-identical axis, no interpolation), X/y aligned by sample key. `scripts/check_dataset.py` overlay confirms carbonate ν₃/ν₂ bands deepen with wt%; <500 cm⁻¹ ATR edge-noise to be cropped at 1.3.
   - **Phase 1 — Reproduce core** *(the de-risking checkpoint)*
     - [ ] **1.1 Preprocessing toolkit** (`src`) — composable transforms: SNV, MSC, Savitzky-Golay 1st-deriv (exact) + OPUS best-effort SLS/LOS/MMN + spectral-window cropping. _why leaf: "match result not bits" decided; just implement._
     - [ ] **1.2 PLS + LOOCV harness** (`src`) — sklearn PLSRegression, leave-one-out CV, R²/RMSECV, RMSECV-vs-#factors curve. _why leaf: model + CV scheme decided._
@@ -64,13 +64,22 @@
 - **Scope:** calibration labels only; the 12 `JK_MV_*` references live in this sheet. Validation (`JK_V*`) references are elsewhere and are deferred to 2.1.
 - **⚠ Caveat (reproduction-checkpoint flag):** a separate post-thesis Excel (`Berechnung CO2-Uptake.xlsx`) holds *newer* CO₂-uptake / CaCO₃ values produced for the publication. Per the user's recollection these were used only to re-determine CO₂ absorbed — the OPUS PLS models were **not** retrained — so this calibration sheet's values are the right reproduction target. **If the 1.3 checkpoint comes out further from the paper than expected, the newer CaCO₃ values are the first thing to re-check.**
 
+### 0.4 — Assemble dataset (`src/dataset.py`)
+- **Return type (C2):** frozen `@dataclass Dataset(X, y, wavenumber, samples)` — same instinct as `Spectrum`; binds aligned arrays + provenance, unwrapped as `ds.X, ds.y` at the sklearn boundary. _Chosen over bare NumPy + names list (arrays travel unbound) and a 5049-col DataFrame (heavyweight, immediately `.values`-ed back; 0.2 already rejected the DataFrame style)._
+- **Common grid (B1):** assert-identical guard, **no interpolation**. Probed all 36 cal spectra: bit-identical 5049-pt axis (399.95→3998.76, uniform 0.713 cm⁻¹, zero deviation), so `_mean_spectrum` raises on any axis mismatch rather than resampling. _Chosen over always-interpolate (needless interpolation error here) and a guard+interpolate seam (YAGNI). If 2.1's validation spectra sit on a different axis, that's the moment to add `np.interp` — with real data in hand._
+- **X/y alignment:** by sample **key**, not position. `samples = list(groups)` is the single source of truth for row order; X and y are both comprehensions over it, `y` via `labels[s]` lookup. Position-zipping would misalign silently if CSV/loader order diverged; a missing label raises `KeyError` loudly instead.
+- **Averaging:** elementwise mean over a sample's replicate vectors, `np.mean(np.vstack(rows), axis=0)` → one row per sample (12 rows).
+- **Invariants:** assert X/y shapes + all-finite at assembly end — cheap contract before anything reaches PLS.
+- **Persistence:** none — pure in-memory rebuild (12 means from 36 files is ~ms; a cached `.npz` is just an invalidation risk).
+- **Sanity check:** `scripts/check_dataset.py` overlays the 12 mean spectra coloured by CaCO₃ wt%; carbonate bands deepening with concentration is the visual proof X/y are correctly paired. Output PNG gitignored (regenerable).
+
 ## Next up
 > Ordered for reproduction-first build; reorder freely. The **checkpoint at #7** is the go/no-go — don't invest in packaging until the numbers reproduce.
 
 1. [x] **0.1** Repo scaffolding & data staging
 2. [x] **0.2** OPUS loader
 3. [x] **0.3** Label extraction → `labels.csv` (cal; val deferred to 2.1)
-4. [ ] **0.4** Assemble calibration dataset (avg replicates, common grid, sanity check)
+4. [x] **0.4** Assemble calibration dataset (avg replicates, common grid, sanity check)
 5. [ ] **1.1** Preprocessing toolkit
 6. [ ] **1.2** PLS + LOOCV harness
 7. [ ] **1.3** Reproduce methods a/b/c → Table 3 — **★ CHECKPOINT (go/no-go)**
