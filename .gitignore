@@ -22,6 +22,10 @@ env/
 # Used locally to build labels.csv; the raw multi-experiment data stays out of the repo.
 data/*.xlsx
 
+# Source paper PDF — publisher copyright; kept locally as the reproduction
+# reference (Table 3 etc.), not redistributed. Cite the open-access DOI instead.
+*.pdf
+
 # Trained models (regenerable)
 models/*.joblib
 models/*.pkl

@@ -55,7 +55,10 @@ Quantification of calcium carbonate via ATR infrared spectroscopy."
 - Univariate band-area is expected to be biased — band shape encodes carbonate
   *speciation*, not just total concentration.
 - Paper's own caveats: ATR result depends on C/S ratio, particle size, cement type;
-  method validated over ~20–48 wt% CaCO₃.
+  **external validation** spanned ~20–48 wt% CaCO₃. _Note (confirmed against the
+  thesis): the 20–48 wt% range is the validation window only — the PLS calibration
+  was fit on all 12 JK_MV samples (2.45–61.26 wt%). So the full calibration span in
+  `labels.csv` is correct and expected, not a divergence to re-check at 1.3._
 
 ## Open items for /design-tree and build
 - Map each OPUS sample → its TG-FTIR CaCO₃ label (parse `Auswertung…xlsx`).

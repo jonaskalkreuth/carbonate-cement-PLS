@@ -21,7 +21,7 @@
     - [x] **0.3 Label extraction → committed `labels.csv`** — parse `Auswertung…xlsx`, map sample → FTIR CaCO₃ wt%, write the one published derived file. _why leaf: source + target decided._  ✅ `scripts/extract_labels.py` → `data/labels.csv`: 12 cal samples `JK_MV_01..12`, FTIR CaCO₃ (col U); names map 1-to-1 to loader keys; val labels deferred to 2.1.
     - [x] **0.4 Assemble modelling dataset** — average replicates per sample, resample to common wavenumber grid, align X with y, sanity check (overlay plot + label range). _why leaf: average + common-grid decided._  ✅ `src/dataset.py`: frozen `Dataset` + `assemble_dataset` → X (12, 5049), y (12,), CaCO₃ 2.45–61.26 wt%; B1 axis-guard (all 36 spectra bit-identical axis, no interpolation), X/y aligned by sample key. `scripts/check_dataset.py` overlay confirms carbonate ν₃/ν₂ bands deepen with wt%; <500 cm⁻¹ ATR edge-noise to be cropped at 1.3.
   - **Phase 1 — Reproduce core** *(the de-risking checkpoint)*
-    - [ ] **1.1 Preprocessing toolkit** (`src`) — composable transforms: SNV, MSC, Savitzky-Golay 1st-deriv (exact) + OPUS best-effort SLS/LOS/MMN + spectral-window cropping. _why leaf: "match result not bits" decided; just implement._
+    - [x] **1.1 Preprocessing toolkit** (`src`) — composable transforms: SNV, MSC, Savitzky-Golay 1st-deriv (exact) + OPUS best-effort SLS/LOS/MMN + spectral-window cropping. _why leaf: "match result not bits" decided; just implement._  ✅ `src/preprocessing.py`: 6 sklearn transformers (`BaseEstimator`+`TransformerMixin`) — SNV/MMN/MSC, SG 1.DER (parametrised), SLS/LOS (best-effort) — on a `_StatelessTransform` base; MSC is the only one that learns state (`fit` → training mean spectrum, leakage-safe). `WavenumberWindow` crops a *list* of intervals (method b's two disjoint windows) and runs first. Verified: all 6 finite on real X; method-a recipe composes through 6 stages → (12, 1314); combo semantics still deferred to 1.3.
     - [ ] **1.2 PLS + LOOCV harness** (`src`) — sklearn PLSRegression, leave-one-out CV, R²/RMSECV, RMSECV-vs-#factors curve. _why leaf: model + CV scheme decided._
     - [ ] **1.3 Reproduce methods a/b/c → Table 3 + checkpoint** — wire each method's exact preprocessing combo + spectral window(s) + factor count; results-vs-paper table; **go/no-go: within tolerance?** _why leaf: configs given by Table 3, execution._  (needs 1.1, 1.2, Phase 0)
   - **Phase 2 — External validation**
@@ -63,6 +63,7 @@
 - **Provenance:** extraction is a committed script (raw Excel stays gitignored), so each label traces back to a sheet+column rather than being hand-typed.
 - **Scope:** calibration labels only; the 12 `JK_MV_*` references live in this sheet. Validation (`JK_V*`) references are elsewhere and are deferred to 2.1.
 - **⚠ Caveat (reproduction-checkpoint flag):** a separate post-thesis Excel (`Berechnung CO2-Uptake.xlsx`) holds *newer* CO₂-uptake / CaCO₃ values produced for the publication. Per the user's recollection these were used only to re-determine CO₂ absorbed — the OPUS PLS models were **not** retrained — so this calibration sheet's values are the right reproduction target. **If the 1.3 checkpoint comes out further from the paper than expected, the newer CaCO₃ values are the first thing to re-check.**
+- **Calibration range (resolved, not a flag):** `labels.csv` spans 2.45–61.26 wt%, wider than the paper's "~20–48 wt%". Confirmed against the thesis: 20–48 wt% is the **external-validation** window only; the PLS calibration was fit on **all 12 JK_MV samples** across the full range. So the wide span is correct and expected — do *not* treat it as a divergence at the 1.3 checkpoint.
 
 ### 0.4 — Assemble dataset (`src/dataset.py`)
 - **Return type (C2):** frozen `@dataclass Dataset(X, y, wavenumber, samples)` — same instinct as `Spectrum`; binds aligned arrays + provenance, unwrapped as `ds.X, ds.y` at the sklearn boundary. _Chosen over bare NumPy + names list (arrays travel unbound) and a 5049-col DataFrame (heavyweight, immediately `.values`-ed back; 0.2 already rejected the DataFrame style)._
@@ -73,6 +74,14 @@
 - **Persistence:** none — pure in-memory rebuild (12 means from 36 files is ~ms; a cached `.npz` is just an invalidation risk).
 - **Sanity check:** `scripts/check_dataset.py` overlays the 12 mean spectra coloured by CaCO₃ wt%; carbonate bands deepening with concentration is the visual proof X/y are correctly paired. Output PNG gitignored (regenerable).
 
+### 1.1 — Preprocessing toolkit (`src/preprocessing.py`)
+- **Architecture (the fork → B):** each transform is an **sklearn-compatible transformer** (`BaseEstimator` + `TransformerMixin`, `fit`/`transform`); recipes are sklearn `Pipeline`s. _Chosen over (A) plain functions — leakage discipline falls on us, no CV integration — and (C) a hand-rolled `Transform` protocol — reinvents `Pipeline`. Decisive reason: per-fold `fit` makes **MSC's reference spectrum leakage-safe by construction**, and recipes drop straight into the 1.2 LOOCV harness and the 3.4 `GridSearchCV` window/preprocessing search. Cost is ~3 lines of boilerplate per transform (`__init__`/`fit`/`transform`)._
+- **Six atomic transforms = union across methods a/b/c:** `LOS` (linear offset subtraction), `SLS` (straight-line subtraction), `SNV`, `MMN` (min-max normalization), `MSC`, `1.DER` (Savitzky–Golay 1st derivative, `scipy.signal.savgol_filter`). `1.DER+SLS` is **not** a 7th transform — it's a two-step `Pipeline([Derivative, SLS])`. _Composition is free under B._
+- **Fidelity:** SNV / MSC / SG-derivative **exact**; OPUS `SLS`/`LOS`/`MMN` **best-effort** (closed algorithms — "match result not bits", spec decision 5). `MSC` is the only transform whose `fit` learns state (the reference = training-fold mean spectrum); the rest have a no-op `fit`.
+- **Cropping = one axis-aware transform** taking a **list** of `(low, high)` intervals (method b needs two disjoint windows: 652–1266 **&** 3013–3683), building a boolean column-mask at construction from the wavenumber axis. Subsumes the `<500 cm⁻¹` ATR edge-crop (same op, different intervals). **Runs first in every recipe** (before scatter/normalization/derivative): SNV/MSC compute per-spectrum stats across the included channels, so edge-noise must be gone first or it distorts the whole normalized spectrum. Matches the thesis (spectra were cropped right after measurement).
+- **Table 3 targets (recorded here for 1.3 wiring):** a = {SNV, SLS, MSC, 1.DER+SLS} / 683–1620 / 4 factors / R² 99.52 / RMSECV 1.38 · b = {LOS, SNV, MSC, 1.DER} / 652–1266 & 3013–3683 / 4 / 99.62 / 1.1 · c = {MMN, SLS, MSC, 1.DER+SLS} / 652–1266 / 3 / 99.47 / 1.34.
+- **⚠ Combo semantics unresolved (1.3 task, not 1.1):** the paper lists four preprocessings per method but reports one model each; OPUS's exact combination logic isn't recalled and Quant 2 is closed. **Resolve empirically at 1.3:** try the listed order as a sequential `Pipeline` first, best-of-singles as fallback, and keep whichever reproduces the Table 3 metrics. This is the "match the result, not the bits" method, and exactly what architecture B was chosen to make cheap. 1.1 builds the six composable blocks; it does **not** wire the recipes.
+
 ## Next up
 > Ordered for reproduction-first build; reorder freely. The **checkpoint at #7** is the go/no-go — don't invest in packaging until the numbers reproduce.
 
@@ -80,7 +89,7 @@
 2. [x] **0.2** OPUS loader
 3. [x] **0.3** Label extraction → `labels.csv` (cal; val deferred to 2.1)
 4. [x] **0.4** Assemble calibration dataset (avg replicates, common grid, sanity check)
-5. [ ] **1.1** Preprocessing toolkit
+5. [x] **1.1** Preprocessing toolkit
 6. [ ] **1.2** PLS + LOOCV harness
 7. [ ] **1.3** Reproduce methods a/b/c → Table 3 — **★ CHECKPOINT (go/no-go)**
 8. [ ] **2.1** Build validation set
