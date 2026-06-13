@@ -3,9 +3,9 @@
 Step 1.3 scored the methods *in-sample* (LOOCV on the 12 calibration discs), and
 those numbers are optimistically biased -- the winning preprocessing was chosen on
 the very CV it was reported on. This module is the unbiased judge: fit each method
-on all 12 calibration discs, predict the 6 V-discs the model never saw, and measure
-how the error grows from RMSECV (cal) to RMSEP (val). That cal->val gap is the
-project's headline honesty point.
+on all 12 calibration discs, predict the 8 held-out Figure-7 points the model never
+saw, and measure how the error grows from RMSECV (cal) to RMSEP (val). That cal->val
+gap is the project's headline honesty point.
 
 The paper's Figure 7 has no single RMSEP target; the reproducible targets are the
 *trend* (good near 20 wt%, under-estimates mid-range, over-estimates above 47 wt%),
@@ -28,7 +28,7 @@ from src.methods import METHODS, MethodSpec, _compile, select_best
 
 @dataclass(frozen=True)
 class ValidationResult:
-    """One method's external-validation result on the held-out V-discs.
+    """One method's external-validation result on the held-out Figure-7 points.
 
     Frozen and self-consistent like ``CVResult``: every scalar is computed from the
     ``y_true``/``y_pred`` stored here, so the metrics can never drift from the
@@ -39,12 +39,12 @@ class ValidationResult:
 
     name: str                  # method label, "a"/"b"/"c"
     winner: str                # winning preprocessing the search picked on cal, e.g. "MSC"
-    y_true: np.ndarray         # (6,) TG-FTIR reference CaCO3 wt%, row-aligned to y_pred
-    y_pred: np.ndarray         # (6,) predicted CaCO3 wt% from the cal-fitted model
+    y_true: np.ndarray         # (8,) TG-FTIR reference CaCO3 wt%, row-aligned to y_pred
+    y_pred: np.ndarray         # (8,) predicted CaCO3 wt% from the cal-fitted model
     rmsep: float               # root mean squared error of prediction, wt% (external twin of RMSECV)
-    r2_ext: float              # R2 on the 6 held-out discs (pooled, sklearn convention)
+    r2_ext: float              # R2 on the 8 held-out Figure-7 points (pooled, sklearn convention)
     bias: float                # mean signed error (pred - ref): +ve = systematic over-estimate
-    relative_error: np.ndarray # (6,) per-disc (pred - ref)/ref * 100, the Figure-7 right panel
+    relative_error: np.ndarray # (8,) per-point (pred - ref)/ref * 100, the Figure-7 right panel
     p_value: float             # paired t-test (pred vs ref); > 0.05 => no significant difference
     rmsecv_cal: float          # the winner's calibration RMSECV, for the cal->val gap
 
@@ -60,10 +60,10 @@ def score_validation(name: str, winner: str, y_true: np.ndarray, y_pred: np.ndar
 
     Pure arithmetic -- no models touched here. RMSEP mirrors RMSECV exactly (root of
     the mean squared error) but on the held-out discs, so the two are directly
-    comparable. The paired t-test asks the paper's question: across the 6 discs, are
+    comparable. The paired t-test asks the paper's question: across the 8 points, are
     the prediction errors (pred - ref) centred on zero, or is there a systematic
     shift? A p > 0.05 means we cannot reject "no difference" -- the model is unbiased
-    in the statistical sense even where individual discs are off.
+    in the statistical sense even where individual points are off.
     """
     rmsep = float(np.sqrt(np.mean((y_pred - y_true) ** 2)))
     r2_ext = float(r2_score(y_true, y_pred))
@@ -83,12 +83,12 @@ def score_validation(name: str, winner: str, y_true: np.ndarray, y_pred: np.ndar
 
 
 def validate_method(spec: MethodSpec, cal: Dataset, val: Dataset) -> ValidationResult:
-    """Fit one method on the full calibration set, predict the held-out V-discs.
+    """Fit one method on the full calibration set, predict the held-out Figure-7 points.
 
     The winning preprocessing is *re-derived* on cal (``select_best``, the same
     mechanical search as 1.3) rather than hardcoded, so the val path stays honest
     and independent of 1.3 having run. The winner is then fit on **all 12** cal
-    discs (no CV here -- CV was 1.3's job) and used to predict the 6 V-discs.
+    discs (no CV here -- CV was 1.3's job) and used to predict the 8 Figure-7 points.
     """
     selection = select_best(spec, cal.X, cal.y, cal.wavenumber)
 
@@ -100,7 +100,7 @@ def validate_method(spec: MethodSpec, cal: Dataset, val: Dataset) -> ValidationR
     pipeline = _compile(spec.window, spec.candidates[selection.winner],
                         spec.n_components, cal.wavenumber)
     pipeline.fit(cal.X, cal.y)
-    y_pred = pipeline.predict(val.X).ravel()   # (6, 1) -> (6,), same as the loocv ravel
+    y_pred = pipeline.predict(val.X).ravel()   # (8, 1) -> (8,), same as the loocv ravel
 
     return score_validation(spec.name, selection.winner, val.y, y_pred,
                             rmsecv_cal=selection.cv.rmsecv)
