@@ -9,23 +9,28 @@ Reference value: **FTIR CaCO3** (sheet ``TG-FTIR NEU NEU``, col I, under the
 the same kind of number 0.3 chose for calibration, so cal and val labels are
 apples-to-apples.
 
-Per-specimen aggregation: each CO2-exposure disc (V1..V6) was measured as several
-TG-FTIR aliquots, one row each (``JK_V1``, ``JK_V1_2``, ...). They are aliquots of
-the *same* disc, so we average them into one y per specimen — matching the one-row-
-per-disc spectra grouping in ``src/val.py``. (Counting aliquots as independent
-points would be pseudoreplication.)
+Aggregation = the paper's 8 Figure-7 points, via ``src.val.figure7_key`` (the same
+rule the spectra grouper uses, so labels and spectra can't disagree): V1-V3 keep
+each measurement series as its own point; V4/V5 (the precision discs) average their
+6 series into one point each; V6/V7 drop out. The earlier build averaged V1-V3's two
+series together — that smoothed away the very points Figure 7 plots.
 """
 
 from __future__ import annotations
 
 import csv
 import re
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 import openpyxl
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))  # so `from src...` works when run as a plain script
+
+from src.val import figure7_key
+
 XLSX = ROOT / "data" / "Berechnung CO2-Uptake.xlsx"
 SHEET = "TG-FTIR NEU NEU"
 OUT = ROOT / "data" / "val_labels.csv"
@@ -33,45 +38,42 @@ OUT = ROOT / "data" / "val_labels.csv"
 COL_PROBE = 0    # A: series name, e.g. 'JK_V1 (60 Min AKL)' or 'JK_V1_2'
 COL_FTIR = 8     # I: FTIR CaCO3 / %  <- our label
 
-# JK_V7 appears in this sheet but is NOT a validation specimen: per the lab records
-# it was folded into the model for Stage-3 *optimization* (the paper's Table 5 /
-# optional step 2.3), not used for external validation (Figure 7). We also have only
-# its TG-FTIR, no raw ATR spectra. Excluded so val_labels.csv = the 6 Figure-7 discs.
-EXCLUDE = {"JK_V7"}
-
-# Grab the specimen key from a series name, ignoring series suffix + annotations:
-# 'JK_V1 (60 Min AKL)' -> 'JK_V1', 'JK_V4_3' -> 'JK_V4'. Same grab-prefix rule the
-# spectra grouper uses, so label keys line up with src/val.group_specimens keys.
-_SPECIMEN = re.compile(r"JK_V(\d+)")
+# Parse (disc, series) from a TG-FTIR row name: 'JK_V1 (60 Min AKL)' -> (1, 1) (the
+# unnumbered first series), 'JK_V1_2' -> (1, 2), 'JK_V4_3' -> (4, 3). The (disc,
+# series) then routes through the shared figure7_key, identical to the spectra side.
+_PROBE = re.compile(r"JK_V(\d+)(?:_(\d+))?")
 
 
 def extract_val_labels() -> list[tuple[str, float]]:
-    """Return ``[('JK_V1', 44.72), ...]`` — per-specimen mean FTIR CaCO3."""
+    """Return ``[('JK_V1_1', 47.58), ..., ('JK_V4', 47.70), ('JK_V5', 20.22)]``.
+
+    Per-point mean FTIR CaCO3: V1-V3 points are single series (mean of one row);
+    V4/V5 points average all 6 precision-series rows (the paper's Figure-7 value).
+    """
     wb = openpyxl.load_workbook(XLSX, data_only=True, read_only=True)
     ws = wb[SHEET]
 
-    by_specimen: dict[str, list[float]] = defaultdict(list)
+    by_point: dict[str, list[float]] = defaultdict(list)
     for row in ws.iter_rows(values_only=True):
         probe = row[COL_PROBE] if len(row) > COL_PROBE else None
         ftir = row[COL_FTIR] if len(row) > COL_FTIR else None
         if not isinstance(probe, str):
             continue
-        m = _SPECIMEN.search(probe)
+        m = _PROBE.search(probe)
         # require a real numeric label; skips headers, blanks, and any stray text row
         if m is None or not isinstance(ftir, (int, float)):
             continue
-        key = f"JK_V{m.group(1)}"
-        if key in EXCLUDE:
-            continue  # V7: optimization sample, not validation (see EXCLUDE comment)
-        by_specimen[key].append(float(ftir))
+        disc = int(m.group(1))
+        series = int(m.group(2)) if m.group(2) else 1
+        key = figure7_key(disc, series)
+        if key is None:
+            continue  # V6 (below cal range) / V7 (optimization sample)
+        by_point[key].append(float(ftir))
 
-    # average each disc's aliquots, ordered by specimen number for a stable file
-    labels = [
-        (key, sum(vals) / len(vals))
-        for key, vals in sorted(by_specimen.items(), key=lambda kv: int(kv[0][4:]))
-    ]
-    if len(labels) != 6:
-        raise RuntimeError(f"expected 6 validation specimens (V1..V6), got {len(labels)}: {labels}")
+    # average each point's rows (one row for V1-V3 series, six for V4/V5), key-sorted
+    labels = [(key, sum(vals) / len(vals)) for key, vals in sorted(by_point.items())]
+    if len(labels) != 8:
+        raise RuntimeError(f"expected 8 Figure-7 points, got {len(labels)}: {labels}")
     return labels
 
 
