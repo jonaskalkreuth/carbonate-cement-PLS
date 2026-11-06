@@ -1,5 +1,7 @@
 # carbonate-cement-PLS — Project Spec (shared understanding)
 
+> **Status (2026-11-06):** planning doc from 2026-06-10. It states goals, not results; the paper is not yet reproduced. Current status is in `README.md`.
+>
 > Output of a `/grill-me` session on 2026-06-10. Captures the decisions that
 > shape the project, before decomposition (`/design-tree`) and build.
 > Portfolio project **2 of 3** (see `../plan.md`). Sibling project:
