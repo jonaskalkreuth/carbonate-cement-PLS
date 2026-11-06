@@ -6,3 +6,4 @@ scikit-learn>=1.2
 joblib>=1.2
 brukeropus>=0.3   # parse Bruker OPUS binary spectra (the 'a' absorbance block)
 openpyxl>=3.0     # read the lab .xlsx to extract TG-FTIR CaCO3 labels (step 0.3)
+pytest>=7         # test runner (pythonpath ini option needs >=7)
