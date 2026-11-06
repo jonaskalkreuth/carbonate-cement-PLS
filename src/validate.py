@@ -1,4 +1,4 @@
-"""External validation on the held-out V-discs (step 2.2, reproduces Figure 7).
+"""External validation on the held-out V-discs (step 2.2, Figure 7).
 
 Step 1.3 scored the methods *in-sample* (LOOCV on the 12 calibration discs), and
 those numbers are optimistically biased -- the winning preprocessing was chosen on
@@ -7,11 +7,11 @@ on all 12 calibration discs, predict the 8 held-out Figure-7 points the model ne
 saw, and measure how the error grows from RMSECV (cal) to RMSEP (val). That cal->val
 gap is the project's headline honesty point.
 
-The paper's Figure 7 has no single RMSEP target; the reproducible targets are the
+The paper's Figure 7 has no single RMSEP target; the paper's targets are the
 *trend* (good near 20 wt%, under-estimates mid-range, over-estimates above 47 wt%),
 the relative errors (<=8-9% for methods a & c), and the paired t-test p-values
 (a:0.526, b:0.241, c:0.730 -- all > 0.05, so "no significant difference from the
-reference"). We reproduce the t-test as the one hard numeric check.
+reference"). We compute the t-test as the one hard numeric check.
 """
 
 from __future__ import annotations

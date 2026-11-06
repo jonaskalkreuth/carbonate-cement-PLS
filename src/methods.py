@@ -7,15 +7,16 @@ as the *candidate set Quant 2 searched* -- and the reported model is the winner.
 
 This module encodes that literally: each ``MethodSpec`` holds its window, factor
 count, and the listed candidates; ``select_best`` LOOCV-scores every candidate and
-picks the lowest-RMSECV one, reproducing Quant 2's optimize. The selection being
-mechanical (not hand-picked) is the point -- and it lands the paper: a -> MSC,
-b -> SNV, c -> MMN, each the preprocessing its method is built around.
+picks the lowest-RMSECV one, as a model of Quant 2's optimize. The selection is
+mechanical (not hand-picked) and picks a -> MSC, b -> SNV, c -> MMN. This menu
+reading is provisional: the paper's recipe may instead be a derivative plus one
+scatter correction, and no winner here contains the derivative.
 
-Two reproduction caveats, honestly: (1) OPUS's SLS/LOS/MMN/derivative are closed,
+Two caveats: (1) OPUS's SLS/LOS/MMN/derivative are closed,
 so absolute RMSECV matches only within a best-effort gap ("match the result, not
 the bits", spec decision 5) -- method b's winner even slightly *beats* the paper.
 (2) Selecting preprocessing by LOOCV at n=12 is itself the optimism trap this
-project exists to expose; we reproduce it faithfully here and let external
+project exists to expose; we keep it here, as OPUS did, and let external
 validation (2.2) be the real judge.
 """
 

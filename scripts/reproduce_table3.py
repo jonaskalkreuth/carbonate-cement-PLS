@@ -1,12 +1,13 @@
-"""Step 1.3 checkpoint: reproduce the paper's Table 3 and judge go/no-go.
+"""Step 1.3 checkpoint: compare against the paper's Table 3 and judge go/no-go.
 
 Compiles methods a/b/c (src/methods.py), leave-one-out scores each on the
 calibration set, and writes an ours-vs-paper comparison to a *committed*
 reports/1.3_table3.md -- the durable artifact for the README and interviews.
 The pass/fail logic lives in src.methods (testable); this script only renders.
 
-This is the de-risking gate: if the three methods land within tolerance, the
-Python reproduction holds and Phase 2 (external validation) is worth building.
+This is the de-risking gate: if the three methods land within tolerance, Phase 2
+(external validation) is worth building. GO is a build checkpoint, not a claim
+that the paper is reproduced.
 """
 
 from __future__ import annotations
@@ -42,13 +43,18 @@ def _window_str(intervals: list[tuple[float, float]]) -> str:
 def render_markdown(comparisons: list[MethodComparison]) -> str:
     """Build the ours-vs-paper Table-3 markdown from the scored comparisons."""
     lines = [
-        "# Step 1.3 — Table 3 reproduction (go/no-go checkpoint)",
+        "# Step 1.3 — Table 3 vs paper (go/no-go checkpoint)",
+        "",
+        "> **Status: in progress.** These numbers come from a provisional recipe: "
+        "one scatter correction per method, no derivative. The paper's preprocessing "
+        "order is still unresolved. The GO verdict below is a build checkpoint, not a "
+        "claim that the paper is reproduced.",
         "",
         "Each method's preprocessing is **selected by an RMSECV search over the "
-        "candidates the paper lists** (reproducing OPUS Quant 2's optimize), not "
+        "candidates the paper lists** (modelling OPUS Quant 2's optimize), not "
         "hand-picked. \"Selected\" shows the winner; \"of N\" the candidates searched.",
         "",
-        f"Success bar (symmetric): R² ≥ {R2_FLOOR_PCT:.0f}% **and** |ΔRMSECV| ≤ "
+        f"Success bar: R² ≥ {R2_FLOOR_PCT:.0f}% **and** |ΔRMSECV| ≤ "
         f"{RMSECV_TOL_WTPCT} wt% vs the paper. *beats* = better than the paper by "
         "more than tolerance (best-effort gap, favourable side — does not block GO).",
         "",
@@ -70,7 +76,7 @@ def render_markdown(comparisons: list[MethodComparison]) -> str:
 
     go = not any(c.blocks_go for c in comparisons)
     beats = [c.name for c in comparisons if c.verdict == "beats"]
-    note = "all three reproduce the paper's preprocessing choice within tolerance"
+    note = "all three select the paper's preprocessing and land within tolerance"
     if go and beats:
         note = (f"every method selects the paper's preprocessing and clears the R² floor; "
                 f"method {', '.join(beats)} even beats the paper (best-effort gap)")

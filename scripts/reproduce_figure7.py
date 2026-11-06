@@ -1,4 +1,4 @@
-"""Step 2.2: reproduce the paper's Figure 7 + the external-validation numbers.
+"""Step 2.2: compare against the paper's Figure 7 + the external-validation numbers.
 
 Fits methods a/b/c on the full calibration set, predicts the 6 held-out V-discs,
 and renders (1) the two-panel Figure 7 -- predicted-vs-reference and per-disc
@@ -73,7 +73,7 @@ def plot_figure7(results: list[ValidationResult]) -> plt.Figure:
     ax_rel.set_title("Relative error vs reference")
     ax_rel.legend(fontsize=8)
 
-    fig.suptitle("Figure 7 reproduction — external validation on held-out V-discs (step 2.2)")
+    fig.suptitle("Figure 7 comparison — external validation on held-out V-discs (step 2.2)")
     fig.tight_layout()
     return fig
 
@@ -84,8 +84,17 @@ PAPER_PVALUE = {"a": 0.526, "b": 0.241, "c": 0.730}
 
 def render_markdown(results: list[ValidationResult]) -> str:
     """Build the committed external-validation report from the scored results."""
+    # The paper's <=8-9% bound for a & c excludes references above 47 wt%.
+    max_err = {r.name: max(abs(e) for t, e in zip(r.y_true, r.relative_error) if t <= 47)
+               for r in results}
     lines = [
-        "# Step 2.2 — Figure 7 reproduction (external validation)",
+        "# Step 2.2 — Figure 7 vs paper (external validation)",
+        "",
+        "> **Status: in progress.** This runs on the provisional recipe from step 1.3. "
+        f"Excluding references above 47 wt%, the max relative error is "
+        f"{max_err['a']:.1f}% for method a and {max_err['c']:.1f}% for method c. "
+        "Both miss the paper's bound of ≤ 8–9%. The t-test check below also passes "
+        "for recipes known to be wrong, so it does not confirm reproduction.",
         "",
         "Each method is fit on **all 12 calibration discs** (winning preprocessing "
         "re-derived by the same search as 1.3) and predicts the paper's **8 Figure-7 "
@@ -105,8 +114,8 @@ def render_markdown(results: list[ValidationResult]) -> str:
             f"| {r.p_value:.3f} | {PAPER_PVALUE[r.name]:.3f} |"
         )
 
-    # The t-test conclusion is the reproducible target: all p > 0.05 => no significant
-    # difference from the reference, matching the paper regardless of the exact p.
+    # The paper's t-test conclusion: all p > 0.05 => no significant difference from
+    # the reference, regardless of the exact p.
     all_ns = all(r.p_value > 0.05 for r in results)
     worst = max(results, key=lambda r: r.gap)
     lines += [
@@ -121,8 +130,8 @@ def render_markdown(results: list[ValidationResult]) -> str:
         f"{max(r.rmsecv_cal for r in results):.1f} wt% — a {worst.gap:+.1f} wt% jump at "
         f"worst (method {worst.name}), the optimism of in-sample CV at n≈11 made visible. "
         + ("All three paired t-tests give p > 0.05 → **no significant difference from the "
-           "TG-FTIR reference**, reproducing the paper's conclusion (exact p differs: "
-           "best-effort preprocessing gap)." if all_ns else
+           "TG-FTIR reference**, the same conclusion as the paper (exact p differs). "
+           "This check also passes for recipes known to be wrong." if all_ns else
            "At least one paired t-test gives p ≤ 0.05 → a significant difference from the "
            "reference, unlike the paper — investigate."),
     ]
