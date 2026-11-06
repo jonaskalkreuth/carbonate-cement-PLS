@@ -22,8 +22,8 @@ def _sha256(path: Path) -> str:
 
 
 def test_no_spectrum_file_shared_between_cal_and_val():
-    cal = list(CAL_DIR.iterdir())
-    val = list(VAL_DIR.iterdir())
+    cal = [p for p in CAL_DIR.iterdir() if not p.name.startswith(".")]
+    val = [p for p in VAL_DIR.iterdir() if not p.name.startswith(".")]
     assert not {p.name for p in cal} & {p.name for p in val}
     assert not {_sha256(p) for p in cal} & {_sha256(p) for p in val}
 
